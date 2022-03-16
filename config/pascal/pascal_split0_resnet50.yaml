@@ -1,7 +1,7 @@
 DATA:
-  data_root: 
-  train_list: 
-  val_list: 
+  data_root: ../dataset/VOCdevkit/VOC2012
+  train_list: lists/pascal/voc_sbd_merge_noduplicate.txt  # 所有的training数据（merged from both dataset)
+  val_list: list/pascal/val.txt  # 所有的val数据（只用val就够了）
   classes: 2
 
 
@@ -48,14 +48,14 @@ TRAIN:
   ori_resize: True  # use original label for evaluation
 
 ## deprecated multi-processing training
-Distributed:
-  dist_url: tcp://127.0.0.1:6789
-  dist_backend: 'nccl'
-  multiprocessing_distributed: False
-  world_size: 1
-  rank: 0
-  use_apex: False
-  opt_level: 'O0'
-  keep_batchnorm_fp32:
-  loss_scale:
+#Distributed:
+#  dist_url: tcp://127.0.0.1:6789
+#  dist_backend: 'nccl'
+#  multiprocessing_distributed: False
+#  world_size: 1
+#  rank: 0
+#  use_apex: False
+#  opt_level: 'O0'
+#  keep_batchnorm_fp32:
+#  loss_scale:
 

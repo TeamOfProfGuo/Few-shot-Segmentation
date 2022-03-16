@@ -1,3 +1,4 @@
+# encoding:utf-8
 import os
 import os.path
 import cv2
@@ -19,7 +20,8 @@ def is_image_file(filename):
     return any(filename_lower.endswith(extension) for extension in IMG_EXTENSIONS)
 
 
-def make_dataset(split=0, data_root=None, data_list=None, sub_list=None):    
+def make_dataset(split=0, data_root=None, data_list=None, sub_list=None):    # data_list: query set. sub_list: support cls list
+    # data_list 应该是所有图片数据 （meta train过程用train_list, meta_test过程用val_list)
     assert split in [0, 1, 2, 3, 10, 11, 999]
     if not os.path.isfile(data_list):
         raise (RuntimeError("Image list file do not exist: " + data_list + "\n"))
@@ -34,17 +36,17 @@ def make_dataset(split=0, data_root=None, data_list=None, sub_list=None):
     print("Processing data...".format(sub_list))
     sub_class_file_list = {}
     for sub_c in sub_list:
-        sub_class_file_list[sub_c] = []
+        sub_class_file_list[sub_c] = []    # 每个class对应的image （img path, label path)
 
     for l_idx in tqdm(range(len(list_read))):
         line = list_read[l_idx]
         line = line.strip()
-        line_split = line.split(' ')
+        line_split = line.split(' ')  # 分别得到 image 和 mask的路径
         image_name = os.path.join(data_root, line_split[0])
         label_name = os.path.join(data_root, line_split[1])
         item = (image_name, label_name)
         label = cv2.imread(label_name, cv2.IMREAD_GRAYSCALE)
-        label_class = np.unique(label).tolist()
+        label_class = np.unique(label).tolist()      # 当前图片所有的label/class
 
         if 0 in label_class:
             label_class.remove(0)
@@ -56,20 +58,22 @@ def make_dataset(split=0, data_root=None, data_list=None, sub_list=None):
             if c in sub_list:
                 tmp_label = np.zeros_like(label)
                 target_pix = np.where(label == c)
-                tmp_label[target_pix[0],target_pix[1]] = 1 
+                tmp_label[target_pix[0],target_pix[1]] = 1   # 标注出class为c的pixel(其值设为1）
                 if tmp_label.sum() >= 2 * 32 * 32:      
                     new_label_class.append(c)
 
-        label_class = new_label_class    
+        label_class = new_label_class      # 当前图片所有符合条件的cls
 
         if len(label_class) > 0:
-            image_label_list.append(item)
+            image_label_list.append(item)   # 符合条件的image的 图片path + label path
             for c in label_class:
                 if c in sub_list:
-                    sub_class_file_list[c].append(item)
+                    sub_class_file_list[c].append(item)     # 所有跟cls c相关的图片
                     
     print("Checking image&label pair {} list done! ".format(split))
     return image_label_list, sub_class_file_list
+    # image_label_list: list of 所有(image path, mask_path)
+    # sub_class_file_list： {c: list of 所有跟cls c相关的 （图片+其label path）}
 
 
 
@@ -146,7 +150,7 @@ class SemData(Dataset):
 
     def __getitem__(self, index):
         label_class = []
-        image_path, label_path = self.data_list[index]
+        image_path, label_path = self.data_list[index]   # 用每一张图片 作为 query image
         image = cv2.imread(image_path, cv2.IMREAD_COLOR) 
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  
         image = np.float32(image)
@@ -161,17 +165,18 @@ class SemData(Dataset):
             label_class.remove(255) 
         new_label_class = []       
         for c in label_class:
-            if c in self.sub_val_list:
+            if c in self.sub_val_list: # meta test过程中的cls list
                 if self.mode == 'val' or self.mode == 'test':
                     new_label_class.append(c)
-            if c in self.sub_list:
+            if c in self.sub_list:     # meta train中的cls list
                 if self.mode == 'train':
                     new_label_class.append(c)
-        label_class = new_label_class    
+        label_class = new_label_class        # 当前image所有关心的cls
         assert len(label_class) > 0
 
 
-        class_chosen = label_class[random.randint(1,len(label_class))-1]
+        # 决定当前任务（segment哪个cls),得到query image的GT label
+        class_chosen = label_class[random.randint(1,len(label_class))-1]   ################## 选取target cls, convert label to binary
         class_chosen = class_chosen
         target_pix = np.where(label == class_chosen)
         ignore_pix = np.where(label == 255)
@@ -181,12 +186,12 @@ class SemData(Dataset):
         label[ignore_pix[0],ignore_pix[1]] = 255           
 
 
-        file_class_chosen = self.sub_class_file_list[class_chosen]
+        file_class_chosen = self.sub_class_file_list[class_chosen]   # 从中选取啊support image
         num_file = len(file_class_chosen)
 
-        support_image_path_list = []
+        support_image_path_list = []          ########################################## 存所有support image 和 label的路径
         support_label_path_list = []
-        support_idx_list = []
+        support_idx_list = [] # 相对 file_class_chosen的 idx
         for k in range(self.shot):
             support_idx = random.randint(1,num_file)-1
             support_image_path = image_path
@@ -198,9 +203,9 @@ class SemData(Dataset):
             support_image_path_list.append(support_image_path)
             support_label_path_list.append(support_label_path)
 
-        support_image_list = []
+        support_image_list = []        ######################################################## 读取support image & label
         support_label_list = []
-        subcls_list = []
+        subcls_list = []          # 纪录每张图片所用的cls (有多个cls,只关注一个） index wrt sub_list/sub_val_list
         for k in range(self.shot):  
             if self.mode == 'train':
                 subcls_list.append(self.sub_list.index(class_chosen))
@@ -223,7 +228,7 @@ class SemData(Dataset):
             support_label_list.append(support_label)
         assert len(support_label_list) == self.shot and len(support_image_list) == self.shot                    
         
-        raw_label = label.copy()
+        raw_label = label.copy()   # query image raw label
         if self.transform is not None:
             image, label = self.transform(image, label)
             for k in range(self.shot):
@@ -233,13 +238,15 @@ class SemData(Dataset):
         s_ys = support_label_list
         s_x = s_xs[0].unsqueeze(0)
         for i in range(1, self.shot):
-            s_x = torch.cat([s_xs[i].unsqueeze(0), s_x], 0)
+            s_x = torch.cat([s_xs[i].unsqueeze(0), s_x], 0)  # [K, 3, h, w]
         s_y = s_ys[0].unsqueeze(0)
         for i in range(1, self.shot):
-            s_y = torch.cat([s_ys[i].unsqueeze(0), s_y], 0)
+            s_y = torch.cat([s_ys[i].unsqueeze(0), s_y], 0)  # [K, 2, h, w]
 
         if self.mode == 'train':
             return image, label, s_x, s_y, subcls_list
+            # image: query image (变换后), label: query label(变换后)，s_x: query img concat, s_y:query label concat,
+            # sub_cls_list, 每个support image所关注的label 对应的index
         else:
             return image, label, s_x, s_y, subcls_list, raw_label
 
