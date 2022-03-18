@@ -53,7 +53,7 @@ class PFENet(nn.Module):
         pretrained=True, sync_bn=True, shot=1, ppm_scales=[60, 30, 15, 8], vgg=False):
         super(PFENet, self).__init__()
         assert layers in [50, 101, 152]
-        print(ppm_scales)
+        print('ppm_scale',ppm_scales)
         assert classes > 1
         from torch.nn import BatchNorm2d as BatchNorm        
         self.zoom_factor = zoom_factor
@@ -177,7 +177,8 @@ class PFENet(nn.Module):
      
 
 
-    def forward(self, x, s_x=torch.FloatTensor(1,1,3,473,473).cuda(), s_y=torch.FloatTensor(1,1,473,473).cuda(), y=None):
+    def forward(self, x, s_x, s_y, y=None):
+        # s_x=torch.FloatTensor(1,1,3,473,473).cuda(), s_y=torch.FloatTensor(1,1,473,473).cuda()
         x_size = x.size()
         assert (x_size[2]-1) % 8 == 0 and (x_size[3]-1) % 8 == 0
         h = int((x_size[2] - 1) / 8 * self.zoom_factor + 1)
@@ -295,7 +296,9 @@ class PFENet(nn.Module):
 
         if self.training:
             main_loss = self.criterion(out, y.long())
-            aux_loss = torch.zeros_like(main_loss).cuda()    # aux loss初始化为0
+            aux_loss = torch.zeros_like(main_loss)      # .cuda()    # aux loss初始化为0
+            if main_loss.is_cuda:
+                aux_loss = aux_loss.cuda()
 
             for idx_k in range(len(out_list)):    
                 inner_out = out_list[idx_k]

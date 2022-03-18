@@ -1,7 +1,8 @@
+
 DATA:
   data_root: ../dataset/VOCdevkit/VOC2012
-  train_list: lists/pascal/voc_sbd_merge_noduplicate.txt  # 所有的training数据（merged from both dataset)
-  val_list: list/pascal/val.txt  # 所有的val数据（只用val就够了）
+  train_list: lists/pascal/voc_sbd_merge_noduplicate.txt  # all training data (merged from both dataset)
+  val_list: lists/pascal/val.txt  # all val data  (only val in pascal is enough)
   classes: 2
 
 
@@ -19,7 +20,8 @@ TRAIN:
   ignore_label: 255
   padding_label: 255
   aux_weight: 1.0
-  train_gpu: [0]
+  train_gpu: [0]                                                                                   # not in use for now
+  cuda: False
   workers: 8  # data loader workers
   batch_size: 4  # batch size for training
   batch_size_val: 1
@@ -44,7 +46,7 @@ TRAIN:
   warmup: False
   use_coco: False
   use_split_coco: False
-  resized_val: True
+  resized_val: True                                          # resize val is only used in valuation, NOT in test
   ori_resize: True  # use original label for evaluation
 
 ## deprecated multi-processing training

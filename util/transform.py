@@ -1,3 +1,5 @@
+# encoding:utf-8
+
 import random
 import math
 import numpy as np
@@ -28,6 +30,7 @@ import time
 class ToTensor(object):
     # Converts numpy.ndarray (H x W x C) to a torch.FloatTensor of shape (C x H x W).
     def __call__(self, image, label):
+        # image [h, w, c], label [h, w]
         if not isinstance(image, np.ndarray) or not isinstance(label, np.ndarray):
             raise (RuntimeError("segtransform.ToTensor() only handle np.ndarray"
                                 "[eg: data readed by cv2.imread()].\n"))
@@ -38,7 +41,7 @@ class ToTensor(object):
         if not len(label.shape) == 2:
             raise (RuntimeError("segtransform.ToTensor() only handle np.ndarray labellabel with 2 dims.\n"))
 
-        image = torch.from_numpy(image.transpose((2, 0, 1)))
+        image = torch.from_numpy(image.transpose((2, 0, 1)))   # channel 放在前面， h, w 在后
         if not isinstance(image, torch.FloatTensor):
             image = image.float()
         label = torch.from_numpy(label)

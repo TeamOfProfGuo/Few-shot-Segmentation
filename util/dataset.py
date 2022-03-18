@@ -22,6 +22,7 @@ def is_image_file(filename):
 
 def make_dataset(split=0, data_root=None, data_list=None, sub_list=None):    # data_list: query set. sub_list: support cls list
     # data_list 应该是所有图片数据 （meta train过程用train_list, meta_test过程用val_list)
+    # scan所有的训练数据， 找到sub_list中的class与其多对应的image(img_path, label_path)
     assert split in [0, 1, 2, 3, 10, 11, 999]
     if not os.path.isfile(data_list):
         raise (RuntimeError("Image list file do not exist: " + data_list + "\n"))
@@ -53,6 +54,7 @@ def make_dataset(split=0, data_root=None, data_list=None, sub_list=None):    # d
         if 255 in label_class:
             label_class.remove(255)
 
+        # 当前图片的所有cls, 如果满足条件 (在sub_list中，且图片中有大于2*32*32个pixel),则把当前图片加入image_label_list, 并相应的更新 sub_class_file_list[c]
         new_label_class = []       
         for c in label_class:
             if c in sub_list:
@@ -245,7 +247,7 @@ class SemData(Dataset):
 
         if self.mode == 'train':
             return image, label, s_x, s_y, subcls_list
-            # image: query image (变换后), label: query label(变换后)，s_x: query img concat, s_y:query label concat,
+            # image: query image (变换后), label: query label(变换后)，s_x: support img concat, s_y:support label concat,
             # sub_cls_list, 每个support image所关注的label 对应的index
         else:
             return image, label, s_x, s_y, subcls_list, raw_label

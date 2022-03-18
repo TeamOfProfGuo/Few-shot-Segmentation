@@ -72,7 +72,7 @@ def intersectionAndUnionGPU(output, target, K, ignore_index=255):
     target = target.view(-1)
     output[target == ignore_index] = ignore_index
     intersection = output[output == target]
-    area_intersection = torch.histc(intersection, bins=K, min=0, max=K-1)
+    area_intersection = torch.histc(intersection, bins=K, min=0, max=K-1)   # 计算 histogram (bin: 0, 1, 255)
     area_output = torch.histc(output, bins=K, min=0, max=K-1)
     area_target = torch.histc(target, bins=K, min=0, max=K-1)
     area_union = area_output + area_target - area_intersection
