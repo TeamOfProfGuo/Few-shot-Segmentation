@@ -49,11 +49,11 @@ TRAIN:
   resized_val: True                                          # resize val is only used in valuation, NOT in test
   ori_resize: True  # use original label for evaluation
 
-## deprecated multi-processing training
-#Distributed:
+#deprecated multi-processing training
+Distributed:
 #  dist_url: tcp://127.0.0.1:6789
 #  dist_backend: 'nccl'
-multiprocessing_distributed: False
+  multiprocessing_distributed: False
 #  world_size: 1
 #  rank: 0
 #  use_apex: False
