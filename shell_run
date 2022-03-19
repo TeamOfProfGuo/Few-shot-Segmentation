@@ -1,0 +1,2 @@
+
+sbatch train.sh pascal split0_resnet50
