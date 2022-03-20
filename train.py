@@ -364,6 +364,9 @@ def validate(val_loader, model, criterion):
                 input = input.cuda(non_blocking=True)
                 target = target.cuda(non_blocking=True)
                 ori_label = ori_label.cuda(non_blocking=True)
+                s_input = s_input.cuda(non_blocking=True)
+                s_mask = s_mask.cuda(non_blocking=True)                                     # 为什么这里之前没有 转化为 cuda 
+
             start_time = time.time()
             output = model(s_x=s_input, s_y=s_mask, x=input, y=target)
             total_time = total_time + 1
