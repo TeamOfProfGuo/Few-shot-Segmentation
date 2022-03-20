@@ -177,7 +177,7 @@ class PFENet(nn.Module):
      
 
 
-    def forward(self, x, s_x, s_y, y=None):
+    def forward(self, x, s_x=torch.FloatTensor(1,1,3,473,473).cuda(), s_y=torch.FloatTensor(1,1,473,473).cuda(), y=None):
         # s_x=torch.FloatTensor(1,1,3,473,473).cuda(), s_y=torch.FloatTensor(1,1,473,473).cuda()
         x_size = x.size()
         assert (x_size[2]-1) % 8 == 0 and (x_size[3]-1) % 8 == 0
