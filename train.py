@@ -403,7 +403,7 @@ def validate(val_loader, model, criterion):
             loss_meter.update(loss.item(), input.size(0))
             batch_time.update(time.time() - end)
             end = time.time()
-            if ((i + 1) % (test_num / 100) == 0):
+            if ((i + 1) % (test_num / 500) == 0):
                 logger.info('Test: [{}/{}] '
                             'Data {data_time.val:.3f} ({data_time.avg:.3f}) '
                             'Batch {batch_time.val:.3f} ({batch_time.avg:.3f}) '
