@@ -39,14 +39,15 @@ def poly_learning_rate(optimizer, base_lr, curr_iter, max_iter, power=0.9, index
     else:
         lr = base_lr * (1 - float(curr_iter) / max_iter) ** power
 
-    if curr_iter % 50 == 0:   
-        print('Base LR: {:.4f}, Curr LR: {:.4f}, Warmup: {}.'.format(base_lr, lr, (warmup and curr_iter < warmup_step)))     
+    # if curr_iter % 50 == 0:   
+    #     print('Base LR: {:.4f}, Curr LR: {:.4f}, Warmup: {}.'.format(base_lr, lr, (warmup and curr_iter < warmup_step)))     
 
     for index, param_group in enumerate(optimizer.param_groups):
         if index <= index_split:
             param_group['lr'] = lr
         else:
             param_group['lr'] = lr * scale_lr
+    return lr
 
 
 def intersectionAndUnion(output, target, K, ignore_index=255):

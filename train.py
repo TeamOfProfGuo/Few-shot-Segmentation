@@ -194,7 +194,7 @@ def main():
         writer.add_scalar('mAcc_train', mAcc_train, epoch_log)
         writer.add_scalar('allAcc_train', allAcc_train, epoch_log)
 
-        if args.evaluate and (epoch % 2 == 0 or (args.epochs <= 50 and epoch % 1 == 0)):
+        if args.evaluate and (epoch % 5 == 0):  # or (args.epochs <= 50 and epoch % 1 == 0)
             loss_val, mIoU_val, mAcc_val, allAcc_val, class_miou = validate(val_loader, model, criterion)
 
             writer.add_scalar('loss_val', loss_val, epoch_log)
@@ -204,9 +204,10 @@ def main():
             writer.add_scalar('allAcc_val', allAcc_val, epoch_log)
             if class_miou > max_iou:
                 max_iou = class_miou
-#                if os.path.exists(filename):
-#                    os.remove(filename)
-                filename = args.save_path + '/train_epoch_' + str(epoch) + '_' + str(max_iou) + '.pth'
+                # if os.path.exists(filename):
+                #     os.remove(filename)
+                # filename = args.save_path + '/train_epoch_' + str(epoch) + '_' + str(max_iou) + '.pth'
+                filename = os.path.join(args.save_path, 'best_pred.pth')
                 logger.info('Saving checkpoint to: ' + filename)
                 torch.save({'epoch': epoch, 'state_dict': model.state_dict(), 'optimizer': optimizer.state_dict()},
                            filename)
@@ -229,15 +230,15 @@ def train(train_loader, model, optimizer, epoch, args):
     model.train()
     end = time.time()
     max_iter = args.epochs * len(train_loader)     # 所有epoch 总共多少iter
-    print('Warmup: {}'.format(args.warmup))
+
     for i, (input, target, s_input, s_mask, subcls) in enumerate(train_loader):
         # input [B, 3, 473, 473], target:[B, 473, 473], s_input:[B, K, 3, 473, 473], s_mask:[B,K,473,473], subcls[list of cls w.r.t. B samples]
         data_time.update(time.time() - end)
         current_iter = epoch * len(train_loader) + i + 1
         index_split = -1
         if args.base_lr > 1e-6:                                                  # decay the learning rate in each batch
-            poly_learning_rate(optimizer, args.base_lr, current_iter, max_iter, power=args.power,
-                               index_split=index_split, warmup=args.warmup, warmup_step=len(train_loader) // 2)
+            lr = poly_learning_rate(optimizer, args.base_lr, current_iter, max_iter, power=args.power,
+                                    index_split=index_split, warmup=args.warmup, warmup_step=len(train_loader) // 2)
 
         if device.type == 'cuda':
             s_input = s_input.cuda(non_blocking=True)
@@ -309,8 +310,9 @@ def train(train_loader, model, optimizer, epoch, args):
     mAcc = np.mean(accuracy_class)
     allAcc = sum(intersection_meter.sum) / (sum(target_meter.sum) + 1e-10)
 
+    logger.info('Base LR: {:.4f}, Curr LR: {:.4f}, Warmup: {}.'.format(args.base_lr, lr, args.warmup))
     logger.info('Train result at epoch [{}/{}]: mIoU/mAcc/allAcc {:.4f}/{:.4f}/{:.4f}.'.format(
-        epoch, args.epochs, mIoU, mAcc, allAcc))
+        epoch+1, args.epochs, mIoU, mAcc, allAcc))
     for i in range(args.classes):
         logger.info('Class_{} Result: iou/accuracy {:.4f}/{:.4f}.'.format(i, iou_class[i], accuracy_class[i]))
     return main_loss_meter.avg, mIoU, mAcc, allAcc
@@ -344,14 +346,15 @@ def validate(val_loader, model, criterion):
 
     model.eval()
     end = time.time()
-    if args.split != 999:
-        if args.use_coco:
-            test_num = 20000
-        else:
-            test_num = 5000
-    else:
-        test_num = len(val_loader)
-    assert test_num % args.batch_size_val == 0
+    # if args.split != 999:
+    #     if args.use_coco:
+    #         test_num = 20000
+    #     else:
+    #         test_num = 5000
+    # else:
+    #     test_num = len(val_loader)
+    # assert test_num % args.batch_size_val == 0
+    test_num = len(val_loader)
     iter_num = 0
     total_time = 0
     for e in range(10):
@@ -403,7 +406,7 @@ def validate(val_loader, model, criterion):
             loss_meter.update(loss.item(), input.size(0))
             batch_time.update(time.time() - end)
             end = time.time()
-            if ((i + 1) % (test_num / 500) == 0):
+            if (i % (test_num // 5) == 0):
                 logger.info('Test: [{}/{}] '
                             'Data {data_time.val:.3f} ({data_time.avg:.3f}) '
                             'Batch {batch_time.val:.3f} ({batch_time.avg:.3f}) '
