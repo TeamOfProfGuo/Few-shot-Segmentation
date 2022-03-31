@@ -2,6 +2,8 @@
 
 Adopted from [**PFENet**](https://github.com/dvlab-research/PFENet).
 
+---
+
 ## Requisites
 - Test Env: Python 3.9.7 (Singularity)
 - Packages:
@@ -9,12 +11,16 @@ Adopted from [**PFENet**](https://github.com/dvlab-research/PFENet).
     - numpy, scipy, pandas, tensorboardX
     - cv2
 
+---
+
 ## Clone codebase
 ```
 cd /scratch/$USER
 git clone https://github.com/TeamOfProfGuo/Few-shot-Segmentation -b hmd-base
 cd Few-shot-Segmentation
 ```
+
+---
 
 ## Preparation
 
@@ -35,6 +41,8 @@ unzip initmodel.zip
 ### Config file
 Modify the **data_root** under *config/pascal/pascal_split0_resnet50.yaml*.
 
+---
+
 ## Training
 **Note:** Modify the path in slurm scripts (as needed) before you start.
 ```
@@ -44,17 +52,12 @@ cd /scratch/$USER/Few-shot-Segmentation
 # train & save & test
 sbatch train.slurm pascal split0_resnet50
 
-# After the job starts:
+# After the job ends:
 cd exp/pascal/split0_resnet50/result && ls
 head train-[some_time_info].log
 # [2022-03-28 13:20:18,453 INFO train.py line 109 4100262] => creating model ...
 # [2022-03-28 13:20:18,454 INFO train.py line 110 4100262] Classes: 2
 # [2022-03-28 13:20:18,454 INFO train.py line 111 4100262] PFENet(
 # [...]
-
-# After the job ends:
-[To be updated]
+# [2022-03-28 23:05:25,407 INFO train.py line 216 3112686] Saving checkpoint to: exp/pascal/split0_resnet50/model/final.pth
 ```
-
-## Testing
-[To be updated]
