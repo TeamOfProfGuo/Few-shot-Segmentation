@@ -16,21 +16,23 @@ git clone https://github.com/TeamOfProfGuo/Few-shot-Segmentation -b hmd-base
 cd Few-shot-Segmentation
 ```
 
-## Prepare Pascal-5i dataset
+## Preparation
+
+### Pascal-5i dataset
 **Note:** Make sure the path in prepare_dataset.sh works for you.
 ```
 cd /scratch/$USER/Few-shot-Segmentation
 bash prepare_dataset.sh
 ```
 
-## Prepare pretrained models
+### Pretrained models
 Download via <a href="https://drive.google.com/file/d/1rMPedZBKFXiWwRX3OHttvKuD1h9QRDbU/view?usp=sharing" target="_blank">this link</a>, and transfer the zip file to your project root on Greene.
 ```
 cd /scratch/$USER/Few-shot-Segmentation
 unzip initmodel.zip
 ```
 
-## Prepare config
+### Config file
 Modify the **data_root** under *config/pascal/pascal_split0_resnet50.yaml*.
 
 ## Training
