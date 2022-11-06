@@ -167,9 +167,10 @@ def main():
                 transform.test_Resize(size=args.val_size),
                 transform.ToTensor(),
                 transform.Normalize(mean=mean, std=std)])
+        # val 数据用 val_list.txt(从val数据中选择），其class从sub_val_list中选择，与训练数据不能重合
         val_data = dataset.SemData(split=args.split, shot=args.shot, data_root=args.data_root, \
                                    data_list=args.val_list, transform=val_transform, mode='val', \
-                                   use_coco=args.use_coco, use_split_coco=args.use_split_coco)
+                                   use_coco=args.use_coco, use_split_coco=args.use_split_coco)       # 用 val_list.txt
         val_sampler = None
         val_loader = torch.utils.data.DataLoader(val_data, batch_size=args.batch_size_val, shuffle=False,
                                                  sampler=val_sampler, **kwargs)
@@ -268,11 +269,11 @@ def train(train_loader, model, optimizer, epoch, args):
         intersection, union, target = intersection.cpu().numpy(), union.cpu().numpy(), target.cpu().numpy()
         intersection_meter.update(intersection), union_meter.update(union), target_meter.update(target)
 
-        accuracy = sum(intersection_meter.val) / (sum(target_meter.val) + 1e-10)
+        accuracy = sum(intersection_meter.val) / (sum(target_meter.val) + 1e-10)  # inter_meter [num0, num1], target_meter[num0, num1]
         main_loss_meter.update(main_loss.item(), n)
         aux_loss_meter.update(aux_loss.item(), n)
         loss_meter.update(loss.item(), n)
-        batch_time.update(time.time() - end)
+        batch_time.update(time.time() - end)    #跑完batch所需要时间
         end = time.time()
 
         remain_iter = max_iter - current_iter
@@ -286,8 +287,8 @@ def train(train_loader, model, optimizer, epoch, args):
                         'Data {data_time.val:.3f} ({data_time.avg:.3f}) '
                         'Batch {batch_time.val:.3f} ({batch_time.avg:.3f}) '
                         'Remain {remain_time} '
-                        'MainLoss {main_loss_meter.val:.4f} '
-                        'AuxLoss {aux_loss_meter.val:.4f} '
+                        'MainLoss {main_loss_meter.val:.4f}'    # 当前batch loss 
+                        'AuxLoss {aux_loss_meter.val:.4f} '     
                         'Loss {loss_meter.val:.4f} '
                         'Accuracy {accuracy:.4f}.'.format(epoch + 1, args.epochs, i + 1, len(train_loader),
                                                           batch_time=batch_time,
@@ -298,16 +299,16 @@ def train(train_loader, model, optimizer, epoch, args):
                                                           loss_meter=loss_meter,
                                                           accuracy=accuracy))
 
-        writer.add_scalar('loss_train_batch', main_loss_meter.val, current_iter)
-        writer.add_scalar('mIoU_train_batch', np.mean(intersection / (union + 1e-10)), current_iter)
-        writer.add_scalar('mAcc_train_batch', np.mean(intersection / (target + 1e-10)), current_iter)
+        writer.add_scalar('loss_train_batch', main_loss_meter.val, current_iter)  # 当前batch loss
+        writer.add_scalar('mIoU_train_batch', np.mean(intersection / (union + 1e-10)), current_iter)   # BG的IoU与FG的IoU平均
+        writer.add_scalar('mAcc_train_batch', np.mean(intersection / (target + 1e-10)), current_iter)  # ClassWise Acc 平均
         writer.add_scalar('allAcc_train_batch', accuracy, current_iter)
 
-    iou_class = intersection_meter.sum / (union_meter.sum + 1e-10)
-    accuracy_class = intersection_meter.sum / (target_meter.sum + 1e-10)
+    iou_class = intersection_meter.sum / (union_meter.sum + 1e-10)   # [BG_IoU, FG_IoU]
+    accuracy_class = intersection_meter.sum / (target_meter.sum + 1e-10)  #[FG_Acc, BG_Acc]
     mIoU = np.mean(iou_class)
-    mAcc = np.mean(accuracy_class)
-    allAcc = sum(intersection_meter.sum) / (sum(target_meter.sum) + 1e-10)
+    mAcc = np.mean(accuracy_class)                                          # ClassWise Acc的平均
+    allAcc = sum(intersection_meter.sum) / (sum(target_meter.sum) + 1e-10)  # 整体Acc
 
     logger.info('Train result at epoch [{}/{}]: mIoU/mAcc/allAcc {:.4f}/{:.4f}/{:.4f}.'.format(
         epoch, args.epochs, mIoU, mAcc, allAcc))
@@ -353,9 +354,10 @@ def validate(val_loader, model, criterion):
         test_num = len(val_loader)
     assert test_num % args.batch_size_val == 0
     iter_num = 0
-    total_time = 0
     for e in range(10):
         for i, (input, target, s_input, s_mask, subcls, ori_label) in enumerate(val_loader):
+            # input[1,3,473,473],target[1,473,473],s_input[1,1,3,473,473],s_mask[1,1,473,473], ori_label:[1,366,500]
+            # val batch_size为1
             if (iter_num - 1) * args.batch_size_val >= test_num:
                 break
             iter_num += 1
@@ -365,41 +367,39 @@ def validate(val_loader, model, criterion):
                 target = target.cuda(non_blocking=True)
                 ori_label = ori_label.cuda(non_blocking=True)
                 s_input = s_input.cuda(non_blocking=True)
-                s_mask = s_mask.cuda(non_blocking=True)                                     # 为什么这里之前没有 转化为 cuda 
+                s_mask = s_mask.cuda(non_blocking=True)                                     # 为什么这里之前没有 转化为 cuda
 
             start_time = time.time()
-            output = model(s_x=s_input, s_y=s_mask, x=input, y=target)
-            total_time = total_time + 1
+            output = model(s_x=s_input, s_y=s_mask, x=input, y=target)    # [B(1), 2, 473, 473]  是logit
             model_time.update(time.time() - start_time)
 
-            if args.ori_resize:
-                longerside = max(ori_label.size(1), ori_label.size(2))
-                backmask = torch.ones(ori_label.size(0), longerside, longerside)
+            if args.ori_resize:       # 不用dataloader里的target, 而用ori_label, 并pad为方形
+                longerside = max(ori_label.size(1), ori_label.size(2))   # ori_label:[1, h, w], label为0， 1， 255
+                backmask = torch.ones(ori_label.size(0), longerside, longerside)  #[1, l, l]
                 if device.type == 'cuda':
                     backmask = backmask.cuda()*255
                 else:
                     backmask = backmask*255
 
-                backmask[0, :ori_label.size(1), :ori_label.size(2)] = ori_label
-                target = backmask.clone().long()
+                backmask[0, :ori_label.size(1), :ori_label.size(2)] = ori_label  # 有效的mask，其他的为255
+                target = backmask.clone().long()                                 # target为方形，对原图像没有rescale
 
             output = F.interpolate(output, size=target.size()[1:], mode='bilinear', align_corners=True)
-            loss = criterion(output, target)
+            loss = criterion(output, target)  # CELoss pred/output为[B,c, h, w], GT为[B,h,w]
 
-            n = input.size(0)
-            loss = torch.mean(loss)
+            loss = torch.mean(loss)                      # 单个图片loss                                                # 没有必要
 
-            output = output.max(1)[1]
+            output = output.max(1)[1]     # [B, h, w] 得到每个pixel对应class index
 
             intersection, union, new_target = intersectionAndUnionGPU(output, target, args.classes, args.ignore_label)
             intersection, union, target, new_target = intersection.cpu().numpy(), union.cpu().numpy(), target.cpu().numpy(), new_target.cpu().numpy()
             intersection_meter.update(intersection), union_meter.update(union), target_meter.update(new_target)
 
-            subcls = subcls[0].cpu().numpy()[0]
-            class_intersection_meter[(subcls - 1) % split_gap] += intersection[1]
-            class_union_meter[(subcls - 1) % split_gap] += union[1]
+            subcls = subcls[0].cpu().numpy()[0]    #其实每个iteration只针对一张query image,K个support img, len(subcls)=K, 里面只有一个class
+            class_intersection_meter[(subcls - 1) % split_gap] += intersection[1]   # intersection[1]是针对FG
+            class_union_meter[(subcls - 1) % split_gap] += union[1]                 # union中的fg
 
-            accuracy = sum(intersection_meter.val) / (sum(target_meter.val) + 1e-10)
+            accuracy = sum(intersection_meter.val) / (sum(target_meter.val) + 1e-10)   # 累计的ACC
             loss_meter.update(loss.item(), input.size(0))
             batch_time.update(time.time() - end)
             end = time.time()
@@ -422,12 +422,12 @@ def validate(val_loader, model, criterion):
 
     class_iou_class = []
     class_miou = 0
-    for i in range(len(class_intersection_meter)):
+    for i in range(len(class_intersection_meter)):    # 每个class的总Intersection和Union和IoU
         class_iou = class_intersection_meter[i] / (class_union_meter[i] + 1e-10)
         class_iou_class.append(class_iou)
         class_miou += class_iou
     class_miou = class_miou * 1.0 / len(class_intersection_meter)
-    logger.info('meanIoU---Val result: mIoU {:.4f}.'.format(class_miou))
+    logger.info('meanIoU---Val result: mIoU {:.4f}.'.format(class_miou))   #每个class IoU然后取平均
     for i in range(split_gap):
         logger.info('Class_{} Result: iou {:.4f}.'.format(i + 1, class_iou_class[i]))
 

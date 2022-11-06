@@ -72,6 +72,7 @@ class Normalize(object):
 
 class Resize(object):
     # Resize the input to the given size, 'size' is a 2-element tuple or list in the order of (h, w).
+    # test image resize 到给定size, 保留长宽比，空白的padd 0/255
     def __init__(self, size):
         self.size = size
 
@@ -85,16 +86,16 @@ class Resize(object):
 
         def find_new_hw(ori_h, ori_w, test_size):
             if ori_h >= ori_w:
-                ratio = test_size*1.0 / ori_h
+                ratio = test_size*1.0 / ori_h   # h 为长边
                 new_h = test_size
-                new_w = int(ori_w * ratio)
+                new_w = int(ori_w * ratio)      # 维持图片的长宽比例
             elif ori_w > ori_h:
-                ratio = test_size*1.0 / ori_w
+                ratio = test_size*1.0 / ori_w   # w为长边
                 new_h = int(ori_h * ratio)
                 new_w = test_size
 
             if new_h % 8 != 0:
-                new_h = (int(new_h /8))*8
+                new_h = (int(new_h /8))*8      # 473变成472， but why
             else:
                 new_h = new_h
             if new_w % 8 != 0:
@@ -112,7 +113,7 @@ class Resize(object):
         # back_crop[:,:,1] = mean[1]
         # back_crop[:,:,2] = mean[2]
         back_crop[:new_h, :new_w, :] = image_crop
-        image = back_crop 
+        image = back_crop                                        # 图片之外pad 0
 
         s_mask = label
         new_h, new_w = find_new_hw(s_mask.shape[0], s_mask.shape[1], test_size)

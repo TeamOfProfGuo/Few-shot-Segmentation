@@ -177,7 +177,7 @@ class PFENet(nn.Module):
      
 
 
-    def forward(self, x, s_x=torch.FloatTensor(1,1,3,473,473).cuda(), s_y=torch.FloatTensor(1,1,473,473).cuda(), y=None):
+    def forward(self, x, s_x, s_y, y=None):
         # s_x=torch.FloatTensor(1,1,3,473,473).cuda(), s_y=torch.FloatTensor(1,1,473,473).cuda()
         x_size = x.size()
         assert (x_size[2]-1) % 8 == 0 and (x_size[3]-1) % 8 == 0
@@ -287,7 +287,7 @@ class PFENet(nn.Module):
         query_feat = torch.cat(pyramid_feat_list, 1)        # 所有pyramid level所得到的feature concat, 求最终的output
         query_feat = self.res1(query_feat)
         query_feat = self.res2(query_feat) + query_feat           
-        out = self.cls(query_feat)
+        out = self.cls(query_feat)    # [B, 2, h, w]
         
 
         # Output Part
@@ -305,7 +305,7 @@ class PFENet(nn.Module):
                 inner_out = F.interpolate(inner_out, size=(h, w), mode='bilinear', align_corners=True)
                 aux_loss = aux_loss + self.criterion(inner_out, y.long())   
             aux_loss = aux_loss / len(out_list)
-            return out.max(1)[1], main_loss, aux_loss
+            return out.max(1)[1], main_loss, aux_loss    # 输出的out 为 [B, h, w]只给出max所对应的class index
         else:
             return out
 

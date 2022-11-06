@@ -1,3 +1,5 @@
+# encoding:utf-8
+
 import os
 import numpy as np
 from PIL import Image
@@ -70,12 +72,12 @@ def intersectionAndUnionGPU(output, target, K, ignore_index=255):
     assert output.shape == target.shape
     output = output.view(-1)
     target = target.view(-1)
-    output[target == ignore_index] = ignore_index
-    intersection = output[output == target]
-    area_intersection = torch.histc(intersection, bins=K, min=0, max=K-1)   # 计算 histogram (bin: 0, 1, 255)
-    area_output = torch.histc(output, bins=K, min=0, max=K-1)
-    area_target = torch.histc(target, bins=K, min=0, max=K-1)
-    area_union = area_output + area_target - area_intersection
+    output[target == ignore_index] = ignore_index    # output 为 prediction, 值为0/1， 现在把ignore的标注出来
+    intersection = output[output == target]          # 包含 0， 1， 255
+    area_intersection = torch.histc(intersection, bins=K, min=0, max=K-1)   # 计算 histogram (bin: 0, 1,)  # binary classification
+    area_output = torch.histc(output, bins=K, min=0, max=K-1)               # Pred [num0, num1]
+    area_target = torch.histc(target, bins=K, min=0, max=K-1)               # GT   [num0, num1]
+    area_union = area_output + area_target - area_intersection              # Union [num0, num1]
     return area_intersection, area_union, area_target
 
 def check_mkdir(dir_name):

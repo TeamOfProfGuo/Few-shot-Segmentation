@@ -37,4 +37,7 @@ echo "finish"
 
 #GREENE GREENE_GPU_MPS=yes
 
+# $ dataset = coco
+# $ exp_name = split0_resnet50
+
 
