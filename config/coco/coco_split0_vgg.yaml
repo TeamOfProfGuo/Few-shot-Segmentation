@@ -32,7 +32,7 @@ TRAIN:
   print_freq: 5
   save_freq: 20
   save_path: exp/coco/split0_vgg/model
-  weight:  
+  weight:  ./pretrain/coco_ckpt_vgg/split0_new.pth
   resume:  # path to latest checkpoint (default: none)
   evaluate: True
   split: 0
