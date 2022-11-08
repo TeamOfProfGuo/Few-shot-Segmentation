@@ -5,10 +5,10 @@ DATA:
   classes: 2
 
 TRAIN:
-  layers: 101 # 50 or 101
+  layers: 50 # 50 or 101
   sync_bn: False
-  train_h: 641
-  train_w: 641
+  train_h: 473
+  train_w: 473
   val_size: 641
   scale_min: 0.8  # minimum random scale
   scale_max: 1.25 # maximum random scale
@@ -20,8 +20,8 @@ TRAIN:
   aux_weight: 1.0
   train_gpu: [0]  # If only one gpu is used, batch size can be set to 8 and base_lr should be 0.005.
   cuda: True
-  workers: 16  # data loader workers
-  batch_size: 8  # batch size for training.
+  workers: 8  # data loader workers
+  batch_size: 4  # batch size for training.
   batch_size_val: 1 # this version of code only support val batch = 1
   base_lr: 0.005
   epochs: 50
