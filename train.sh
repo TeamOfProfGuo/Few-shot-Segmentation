@@ -5,12 +5,12 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=20GB
-#SBATCH --time=24:00:00
+#SBATCH --time=96:00:00
 #SBATCH --mail-type=END
 #SBATCH --mail-user=lg154@nyu.edu
 #SBATCH --output=seg.out
 #SBATCH --gres=gpu # How much gpu need, n is the number
-#SBATCH --partition=v100,a100
+#SBATCH --partition=v100
 
 module purge
 
@@ -30,6 +30,7 @@ cp ${config} ${exp_dir}
 echo "start"
 singularity exec --nv \
             --overlay /scratch/lg154/python36/python36.ext3:ro \
+            --overlay /scratch/lg154/sseg/dataset/coco2014.sqf:ro \
             /scratch/work/public/singularity/cuda11.2.2-cudnn8-devel-ubuntu20.04.sif \
             /bin/bash -c "source /ext3/env.sh; python train.py --config=${config} > ${result_dir}/train-$now.log 2>&1"
 

@@ -21,7 +21,7 @@ TRAIN:
   train_gpu: [0]  # If only one gpu is used, batch size can be set to 8 and base_lr should be 0.005.
   cuda: True
   workers: 8  # data loader workers
-  batch_size: 4  # batch size for training.
+  batch_size: 16 # batch size for training.
   batch_size_val: 1 # this version of code only support val batch = 1
   base_lr: 0.005
   epochs: 50
@@ -30,7 +30,7 @@ TRAIN:
   momentum: 0.9
   weight_decay: 0.0001
   manual_seed: 321
-  print_freq: 5
+  print_freq: 20
   save_freq: 20
   save_path: exp/coco/split0_resnet50/model
   weight:
