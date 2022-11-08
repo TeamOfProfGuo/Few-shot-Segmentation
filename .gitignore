@@ -1,2 +1,7 @@
 *.pyc
 *.xml
+exp/
+*.pth
+initmodel/
+*.zip
+*.out
