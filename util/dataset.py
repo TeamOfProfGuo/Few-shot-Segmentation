@@ -93,6 +93,7 @@ class SemData(Dataset):
         self.meta_aug = args.get('meta_aug', 0)
         self.aug_th = args.get('aug_th', [0.15, 0.30])
         self.aug_type = args.get('aug_type', 0)
+        self.im_size = args.train_h if mode == 'train' else args.val_size
         if self.meta_aug > 1:
             print("INFO using data augmentation, meta_aug:{}".format(self.meta_aug))
 
@@ -279,9 +280,8 @@ class SemData(Dataset):
                 k = 2 if fg_ratio <= 0.03 else 3  # whether to crop at 1/2 or 1/3
                 meta_trans = Compose([FitCrop(k=k)] + self.transform.segtransform[-3:])
             else:
-                scale = 473 / max(support_label.shape) * (0.7 if fg_ratio > 0.3 else 0.8)
-                meta_trans = Compose([RandScale(scale=(scale, scale + 0.05), fixed_size=473,
-                                                padding=[0, 0, 0])] + self.transform.segtransform[-2:])
+                scale = self.im_size / max(support_label.shape) * (0.7 if fg_ratio > 0.3 else 0.8)
+                meta_trans = Compose([RandScale(scale=(scale, scale + 0.05), fixed_size=self.im_size, padding=[0, 0, 0])] + self.transform.segtransform[-2:])
             new_img, new_label = meta_trans(support_image, support_label)
             return new_img.unsqueeze(0), new_label.unsqueeze(0)
         else:
@@ -294,8 +294,8 @@ class SemData(Dataset):
                 k = 2 if fg_ratio <= 0.03 else 3  # whether to crop at 1/2 or 1/3
                 meta_trans = Compose([FitCrop(k=k)] + self.transform.segtransform[-3:])
             else:
-                scale = 473 / max(support_label.shape) * (0.7 if fg_ratio > 0.3 else 0.8)
-                meta_trans = Compose([RandScale(scale=(scale, scale + 0.05), fixed_size=473, padding=[0,0,0])] + self.transform.segtransform[-2:])
+                scale = self.im_size / max(support_label.shape) * (0.7 if fg_ratio > 0.3 else 0.8)
+                meta_trans = Compose([RandScale(scale=(scale, scale + 0.05), fixed_size=self.im_size, padding=[0,0,0])] + self.transform.segtransform[-2:])
             new_img, new_label = meta_trans(support_image, support_label)
             return new_img.unsqueeze(0), new_label.unsqueeze(0)
         else:
