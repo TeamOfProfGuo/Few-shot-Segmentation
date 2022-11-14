@@ -22,9 +22,14 @@ class Compose(object):
         self.segtransform = segtransform
 
     def __call__(self, image, label):
-        for t in self.segtransform:
-            image, label = t(image, label)
-        return image, label
+        if label is None:
+            for t in self.segtransform:
+                image = t(image, None)
+            return image
+        else:
+            for t in self.segtransform:
+                image, label = t(image, label)
+            return image, label
 
 import time
 class ToTensor(object):
@@ -101,14 +106,14 @@ class Resize(object):
             if new_w % 8 != 0:
                 new_w = (int(new_w /8))*8
             else:
-                new_w = new_w    
-            return new_h, new_w           
+                new_w = new_w
+            return new_h, new_w
 
         test_size = self.size
         new_h, new_w = find_new_hw(image.shape[0], image.shape[1], test_size)
         #new_h, new_w = test_size, test_size
         image_crop = cv2.resize(image, dsize=(int(new_w), int(new_h)), interpolation=cv2.INTER_LINEAR)
-        back_crop = np.zeros((test_size, test_size, 3)) 
+        back_crop = np.zeros((test_size, test_size, 3))
         # back_crop[:,:,0] = mean[0]
         # back_crop[:,:,1] = mean[1]
         # back_crop[:,:,2] = mean[2]
@@ -157,10 +162,10 @@ class test_Resize(object):
                 if new_w % 8 != 0:
                     new_w = (int(new_w /8))*8
                 else:
-                    new_w = new_w    
-                return new_h, new_w     
+                    new_w = new_w
+                return new_h, new_w
             else:
-                return ori_h, ori_w      
+                return ori_h, ori_w
 
         test_size = self.size
         new_h, new_w = find_new_hw(image.shape[0], image.shape[1], test_size)
@@ -168,9 +173,9 @@ class test_Resize(object):
             image_crop = cv2.resize(image, dsize=(int(new_w), int(new_h)), interpolation=cv2.INTER_LINEAR)
         else:
             image_crop = image.copy()
-        back_crop = np.zeros((test_size, test_size, 3)) 
+        back_crop = np.zeros((test_size, test_size, 3))
         back_crop[:new_h, :new_w, :] = image_crop
-        image = back_crop 
+        image = back_crop
 
         s_mask = label
         new_h, new_w = find_new_hw(s_mask.shape[0], s_mask.shape[1], test_size)
@@ -185,7 +190,8 @@ class test_Resize(object):
 
 class RandScale(object):
     # Randomly resize image & label with scale factor in [scale_min, scale_max]
-    def __init__(self, scale, aspect_ratio=None):
+    # fixed_size is only needed if want to output fixed size (473) image & label
+    def __init__(self, scale, aspect_ratio=None, fixed_size=None, padding=None):
         assert (isinstance(scale, collections.Iterable) and len(scale) == 2)
         if isinstance(scale, collections.Iterable) and len(scale) == 2 \
                 and isinstance(scale[0], numbers.Number) and isinstance(scale[1], numbers.Number) \
@@ -201,6 +207,7 @@ class RandScale(object):
             self.aspect_ratio = aspect_ratio
         else:
             raise (RuntimeError("segtransform.RandScale() aspect_ratio param error.\n"))
+        self.fixed_size, self.padding = fixed_size, padding
 
     def __call__(self, image, label):
         temp_scale = self.scale[0] + (self.scale[1] - self.scale[0]) * random.random()
@@ -212,6 +219,21 @@ class RandScale(object):
         scale_factor_y = temp_scale / temp_aspect_ratio
         image = cv2.resize(image, None, fx=scale_factor_x, fy=scale_factor_y, interpolation=cv2.INTER_LINEAR)
         label = cv2.resize(label, None, fx=scale_factor_x, fy=scale_factor_y, interpolation=cv2.INTER_NEAREST)
+
+        if self.fixed_size is not None and self.fixed_size>0:
+            new_h, new_w, _ = image.shape
+
+            back_crop = np.zeros((self.fixed_size, self.fixed_size, 3))
+            if self.padding:
+                back_crop[:, :, 0] = self.padding[0]
+                back_crop[:, :, 1] = self.padding[1]
+                back_crop[:, :, 2] = self.padding[2]
+            back_crop[:new_h, :new_w, :] = image
+            image = back_crop
+
+            back_crop_mask = np.ones((self.fixed_size, self.fixed_size)) * 255
+            back_crop_mask[:new_h, :new_w] = label
+            label = back_crop_mask
         return image, label
 
 
@@ -256,7 +278,7 @@ class Crop(object):
     def __call__(self, image, label):
         h, w = label.shape
 
-        
+
         pad_h = max(self.crop_h - h, 0)
         pad_w = max(self.crop_w - w, 0)
         pad_h_half = int(pad_h / 2)
@@ -291,19 +313,78 @@ class Crop(object):
                 h_off = int((h - self.crop_h) / 2)
                 w_off = int((w - self.crop_w) / 2)
             image = image[h_off:h_off+self.crop_h, w_off:w_off+self.crop_w]
-            label = label[h_off:h_off+self.crop_h, w_off:w_off+self.crop_w]   
+            label = label[h_off:h_off+self.crop_h, w_off:w_off+self.crop_w]
             raw_pos_num = np.sum(raw_label == 1)
-            pos_num = np.sum(label == 1)  
+            pos_num = np.sum(label == 1)
             crop_cnt += 1
         if crop_cnt >= 50:
             image = cv2.resize(raw_image, (self.size[0], self.size[0]), interpolation=cv2.INTER_LINEAR)
-            label = cv2.resize(raw_label, (self.size[0], self.size[0]), interpolation=cv2.INTER_NEAREST)            
-                               
+            label = cv2.resize(raw_label, (self.size[0], self.size[0]), interpolation=cv2.INTER_NEAREST)
+
         if image.shape != (self.size[0], self.size[0], 3):
             image = cv2.resize(image, (self.size[0], self.size[0]), interpolation=cv2.INTER_LINEAR)
             label = cv2.resize(label, (self.size[0], self.size[0]), interpolation=cv2.INTER_NEAREST)
 
         return image, label
+
+
+class FitCrop(object):
+    """Crops the given ndarray image (H*W*C or H*W).
+    Args:
+        size (sequence or int): Desired output size of the crop. If size is an
+        int instead of sequence like (h, w), a square crop (size, size) is made.
+    """
+    def __init__(self, k=2, multi = False):
+        self.k = k  # whether to crop at 1/2 or 1/3,  if fg is very small portion, will cutoff bigger area
+        self.multi = multi  # whether to return multiple cropped image
+
+    def __call__(self, image, label):
+        h, w, _ = image.shape
+
+        label_binary = label.copy()
+        label_binary[label_binary == 255] = 0
+        _, labels = cv2.connectedComponents(label_binary)  # labels 为联通域 的 idx
+
+        freq = np.bincount(labels.flatten())
+        freq[0] = 0
+        obj_idx = np.argmax(freq)      # id for 最大联通域
+        pxl_cnt = freq[obj_idx]
+        h0, h1, w0, w1 = self.get_coord(labels, obj_idx, h, w)
+        image = image[h0:h1, w0:w1]
+        label = label[h0:h1, w0:w1]
+
+        if self.multi and len(freq) >= 3:
+            freq[obj_idx] = 0
+            obj_idx2 = np.argmax(freq)
+            pxl_cnt2 = freq[obj_idx2]
+
+            if pxl_cnt2 / pxl_cnt >= 0.3:
+                h0, h1, w0, w1 = self.get_coord(labels, obj_idx2, h, w)
+                image2 = image[h0:h1, w0:w1]
+                label2 = label[h0:h1, w0:w1]
+
+                return image, label, image2, label2
+
+        return image, label
+
+    def get_coord(self, labels, obj_idx, h, w):
+        mask_pos = np.where(labels == obj_idx)
+        min_h, max_h, min_w, max_w = np.min(mask_pos[0]), np.max(mask_pos[0]), np.min(mask_pos[1]), np.max(mask_pos[1])
+
+        h0, h1 = min_h // self.k, h - (h - max_h) // self.k
+        w0, w1 = min_w // self.k, w - (w - max_w) // self.k
+
+        if (h1 - h0) / (w1 - w0) <= 0.7:  # height too small
+            if h0 <= h - h1:
+                h0 = 0
+            else:
+                h1 = h
+        elif (h1 - h0) / (w1 - w0) >= 1.5:  # width too small
+            if w0 <= w - w1:
+                w0 = 0
+            else:
+                w1 = w
+        return h0, h1, w0, w1
 
 
 class RandRotate(object):
@@ -378,3 +459,50 @@ class BGR2RGB(object):
     def __call__(self, image, label):
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         return image, label
+
+
+
+class ColorJitter(object):
+    def __init__(self, cj_type='b'):
+        self.cj_type = cj_type
+
+    def __call__(self, img, label):
+        '''
+        ### Different Color Jitter ###
+        img: image
+        cj_type: {b: brightness, s: saturation, c: constast}
+        '''
+        if self.cj_type == "b":
+            hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+            h, s, v = cv2.split(hsv)    # Hue, Saturation, and Value (Brightness)
+            value = 35 if np.mean(v) <= 125 else -35
+            if value >= 0:
+                lim = 255 - value
+                v[v > lim] = 255
+                v[v <= lim] += value
+            else:
+                lim = np.absolute(value)
+                v[v < lim] = 0
+                v[v >= lim] -= np.absolute(value)
+
+            final_hsv = cv2.merge((h, s, v))
+            img = cv2.cvtColor(final_hsv, cv2.COLOR_HSV2BGR)
+
+        elif self.cj_type == "s":
+            # value = random.randint(-50, 50)
+            value = np.random.choice(np.array([0.5, 0.75, 1.25, 1.5]))
+            hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+            h, s, v = cv2.split(hsv)
+            s *= value
+
+            final_hsv = cv2.merge((h, s, v))
+            img = cv2.cvtColor(final_hsv, cv2.COLOR_HSV2BGR)
+
+        elif self.cj_type == "c":
+            brightness = 10
+            contrast = random.randint(40, 100)
+            dummy = np.int16(img)
+            dummy = dummy * (contrast / 127 + 1) - contrast + brightness
+            img = np.clip(dummy, 0, 255)
+
+        return img, label

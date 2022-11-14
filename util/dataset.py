@@ -10,6 +10,7 @@ import torch
 import random
 import time
 from tqdm import tqdm
+from .transform import Compose, FitCrop, RandScale, ColorJitter
 
 IMG_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.ppm', '.bmp', '.pgm']
 
@@ -80,13 +81,20 @@ def make_dataset(split=0, data_root=None, data_list=None, sub_list=None):    # d
 
 
 class SemData(Dataset):
-    def __init__(self, split=3, shot=1, data_root=None, data_list=None, transform=None, mode='train', use_coco=False, use_split_coco=False):
+    def __init__(self, split=3, shot=1, data_root=None, data_list=None, transform=None, mode='train', use_coco=False, use_split_coco=False,
+                 args={}):
         assert mode in ['train', 'val', 'test']
         
         self.mode = mode
         self.split = split  
         self.shot = shot
-        self.data_root = data_root   
+        self.data_root = data_root
+
+        self.meta_aug = args.get('meta_aug', 0)
+        self.aug_th = args.get('aug_th', [0.15, 0.30])
+        self.aug_type = args.get('aug_type', 0)
+        if self.meta_aug > 1:
+            print("INFO using data augmentation, meta_aug:{}".format(self.meta_aug))
 
         if not use_coco:
             self.class_list = list(range(1, 21)) #[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
@@ -234,16 +242,29 @@ class SemData(Dataset):
         if self.transform is not None:
             image, label = self.transform(image, label)
             for k in range(self.shot):
-                support_image_list[k], support_label_list[k] = self.transform(support_image_list[k], support_label_list[k])
+                if self.meta_aug > 1:
+                    org_img, org_label = self.transform(support_image_list[k], support_label_list[k])  # flip and resize
+                    label_freq = np.bincount(support_label_list[k].flatten())
+                    fg_ratio = label_freq[1] / (label_freq[0] + label_freq[1])  # np.sum(label_freq)
 
-        s_xs = support_image_list
-        s_ys = support_label_list
-        s_x = s_xs[0].unsqueeze(0)
-        for i in range(1, self.shot):
-            s_x = torch.cat([s_xs[i].unsqueeze(0), s_x], 0)  # [K, 3, h, w]
-        s_y = s_ys[0].unsqueeze(0)
-        for i in range(1, self.shot):
-            s_y = torch.cat([s_ys[i].unsqueeze(0), s_y], 0)  # [K, 2, h, w]
+                    if self.aug_type == 0:
+                        new_img, new_label = self.get_aug_data0(fg_ratio, support_image_list[k], support_label_list[k])
+                    elif self.aug_type == 1:
+                        new_img, new_label = self.get_aug_data1(fg_ratio, support_image_list[k], support_label_list[k])
+
+                    if new_img is not None:
+                        support_image_list[k] = torch.cat([org_img.unsqueeze(0), new_img], dim=0)
+                        support_label_list[k] = torch.cat([org_label.unsqueeze(0), new_label], dim=0)
+                    else:
+                        support_image_list[k], support_label_list[k] = org_img.unsqueeze(0), org_label.unsqueeze(0)
+
+                else:
+                    support_image_list[k], support_label_list[k] = self.transform(support_image_list[k], support_label_list[k])
+                    support_image_list[k] = support_image_list[k].unsqueeze(0)
+                    support_label_list[k] = support_label_list[k].unsqueeze(0)
+
+        s_x = torch.cat(support_image_list, 0)
+        s_y = torch.cat(support_label_list, 0)
 
         if self.mode == 'train':
             return image, label, s_x, s_y, subcls_list
@@ -252,3 +273,30 @@ class SemData(Dataset):
         else:
             return image, label, s_x, s_y, subcls_list, raw_label
 
+    def get_aug_data0(self, fg_ratio, support_image, support_label):  # only size augmentation, no color augmentation
+        if fg_ratio <= self.aug_th[0] or fg_ratio >= self.aug_th[1]:
+            if fg_ratio <= self.aug_th[0]:
+                k = 2 if fg_ratio <= 0.03 else 3  # whether to crop at 1/2 or 1/3
+                meta_trans = Compose([FitCrop(k=k)] + self.transform.segtransform[-3:])
+            else:
+                scale = 473 / max(support_label.shape) * (0.7 if fg_ratio > 0.3 else 0.8)
+                meta_trans = Compose([RandScale(scale=(scale, scale + 0.05), fixed_size=473,
+                                                padding=[0, 0, 0])] + self.transform.segtransform[-2:])
+            new_img, new_label = meta_trans(support_image, support_label)
+            return new_img.unsqueeze(0), new_label.unsqueeze(0)
+        else:
+            new_img, new_label = self.transform(support_image, support_label)
+            return new_img.unsqueeze(0), new_label.unsqueeze(0)
+
+    def get_aug_data1(self, fg_ratio, support_image, support_label):   # only size augmentation, no color augmentation
+        if fg_ratio <= self.aug_th[0] or fg_ratio >= self.aug_th[1]:
+            if fg_ratio <= self.aug_th[0]:
+                k = 2 if fg_ratio <= 0.03 else 3  # whether to crop at 1/2 or 1/3
+                meta_trans = Compose([FitCrop(k=k)] + self.transform.segtransform[-3:])
+            else:
+                scale = 473 / max(support_label.shape) * (0.7 if fg_ratio > 0.3 else 0.8)
+                meta_trans = Compose([RandScale(scale=(scale, scale + 0.05), fixed_size=473, padding=[0,0,0])] + self.transform.segtransform[-2:])
+            new_img, new_label = meta_trans(support_image, support_label)
+            return new_img.unsqueeze(0), new_label.unsqueeze(0)
+        else:
+            return None, None

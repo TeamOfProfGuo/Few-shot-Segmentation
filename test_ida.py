@@ -153,12 +153,19 @@ def validate(val_loader, model, criterion):
     intersection_meter = AverageMeter()
     union_meter = AverageMeter()
     target_meter = AverageMeter()
+
+    intersection_meter1 = AverageMeter()
+    union_meter1 = AverageMeter()
+    target_meter1 = AverageMeter()
+
     if args.use_coco:
         split_gap = 20
     else:
         split_gap = 5
     class_intersection_meter = [0]*split_gap
-    class_union_meter = [0]*split_gap  
+    class_union_meter = [0]*split_gap
+    class_intersection_meter1 = [0] * split_gap
+    class_union_meter1 = [0] * split_gap
 
     if args.manual_seed is not None and args.fix_random_seed_val:
         torch.cuda.manual_seed(args.manual_seed)
@@ -189,9 +196,6 @@ def validate(val_loader, model, criterion):
             target = target.cuda(non_blocking=True)
             ori_label = ori_label.cuda(non_blocking=True)
             start_time = time.time()
-            output = model(s_x=s_input, s_y=s_mask, x=input, y=target)
-            total_time = total_time + 1
-            model_time.update(time.time() - start_time)
 
             if args.ori_resize:
                 longerside = max(ori_label.size(1), ori_label.size(2))
@@ -199,21 +203,32 @@ def validate(val_loader, model, criterion):
                 backmask[0, :ori_label.size(1), :ori_label.size(2)] = ori_label
                 target = backmask.clone().long()
 
-            output = F.interpolate(output, size=target.size()[1:], mode='bilinear', align_corners=True)         
-            loss = criterion(output, target)    
-
+            out_all = []
+            for k in range(s_input.shape[1]):
+                curr_input = s_input[:, k:k + 1, :, :, :]  # [bs, shot, ch, h, w]
+                curr_mask = s_mask[:, k:k + 1, :, :]  # [bs, shot, h, w]
+                output = model(s_x=curr_input, s_y=curr_mask, x=input, y=target)  # [B(1), 2, 473, 473]  是logit
+                output = F.interpolate(output, size=target.size()[1:], mode='bilinear', align_corners=True)
+                out_prob = F.softmax(output, dim=1)  # [1, 2, 500, 500]
+                out_all.append(out_prob)
+                if k == 0:
+                    loss = criterion(output, target)
             n = input.size(0)
             loss = torch.mean(loss)
+            model_time.update(time.time() - start_time)
 
-            output = output.max(1)[1]
-
-            intersection, union, new_target = intersectionAndUnionGPU(output, target, args.classes, args.ignore_label)
-            intersection, union, target, new_target = intersection.cpu().numpy(), union.cpu().numpy(), target.cpu().numpy(), new_target.cpu().numpy()
-            intersection_meter.update(intersection), union_meter.update(union), target_meter.update(new_target)
-                
+            output_ori = out_all[0].argmax(dim=1)  # [1, 500, 500]
+            output_aug = torch.cat(out_all, dim=0).mean(dim=0).unsqueeze(0).argmax(dim=1)  # [1, 500, 500]
             subcls = subcls[0].cpu().numpy()[0]
-            class_intersection_meter[(subcls-1)%split_gap] += intersection[1]
-            class_union_meter[(subcls-1)%split_gap] += union[1] 
+            for (pred_, intersection_m, union_m, target_m, class_intersection_m, class_union_m) in \
+                    [(output_ori, intersection_meter, union_meter, target_meter, class_intersection_meter, class_union_meter),
+                     (output_aug, intersection_meter1, union_meter1, target_meter1, class_intersection_meter1, class_union_meter1)]:
+                intersection, union, new_target = intersectionAndUnionGPU(pred_, target, args.classes, args.ignore_label)
+                intersection, union, target, new_target = intersection.cpu().numpy(), union.cpu().numpy(), target.cpu().numpy(), new_target.cpu().numpy()
+                intersection_m.update(intersection), union_m.update(union), target_m.update(new_target)
+
+                class_intersection_m[(subcls-1)%split_gap] += intersection[1]
+                class_union_m[(subcls-1)%split_gap] += union[1]
 
             accuracy = sum(intersection_meter.val) / (sum(target_meter.val) + 1e-10)
             loss_meter.update(loss.item(), input.size(0))
@@ -238,15 +253,21 @@ def validate(val_loader, model, criterion):
 
     
     class_iou_class = []
+    class_iou_class1 = []
     class_miou = 0
+    class_miou1 = 0
     for i in range(len(class_intersection_meter)):
         class_iou = class_intersection_meter[i]/(class_union_meter[i]+ 1e-10)
         class_iou_class.append(class_iou)
         class_miou += class_iou
+        class_iou1 = class_intersection_meter1[i]/(class_union_meter1[i]+ 1e-10)
+        class_iou_class1.append(class_iou1)
+        class_miou1 += class_iou1
     class_miou = class_miou*1.0 / len(class_intersection_meter)
-    logger.info('meanIoU---Val result: mIoU {:.4f}.'.format(class_miou))
+    class_miou1 = class_miou1*1.0 / len(class_intersection_meter)
+    logger.info('meanIoU---Val result: mIoU {:.4f} mIoU1 {:.4f}'.format(class_miou, class_miou1))
     for i in range(split_gap):
-        logger.info('Class_{} Result: iou {:.4f}.'.format(i+1, class_iou_class[i]))            
+        logger.info('Class_{} Result: iou {:.4f} iou1 {:.4f}.'.format(i+1, class_iou_class[i], class_iou_class1[i]))
     
 
     if main_process():

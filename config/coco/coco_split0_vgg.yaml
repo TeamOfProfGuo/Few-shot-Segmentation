@@ -58,5 +58,11 @@ Distributed:
   keep_batchnorm_fp32:
   loss_scale:
 
+TEST_DATA_AUGMENT:
+  meta_aug: 2
+  aug_th: [0.15, 0.30]
+  aug_type: 1
+
+
 
 

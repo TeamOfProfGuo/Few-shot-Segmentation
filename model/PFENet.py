@@ -48,9 +48,8 @@ def get_vgg16_layer(model):
     return layer0,layer1,layer2,layer3,layer4
 
 class PFENet(nn.Module):
-    def __init__(self, layers=50, classes=2, zoom_factor=8, \
-        criterion=nn.CrossEntropyLoss(ignore_index=255), BatchNorm=nn.BatchNorm2d, \
-        pretrained=True, sync_bn=True, shot=1, ppm_scales=[60, 30, 15, 8], vgg=False):
+    def __init__(self, layers=50, classes=2, zoom_factor=8, criterion=nn.CrossEntropyLoss(ignore_index=255),
+                 BatchNorm=nn.BatchNorm2d, pretrained=True, sync_bn=True, shot=1, ppm_scales=[60, 30, 15, 8], vgg=False):
         super(PFENet, self).__init__()
         assert layers in [50, 101, 152]
         print('ppm_scale',ppm_scales)
