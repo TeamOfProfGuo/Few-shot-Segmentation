@@ -36,7 +36,7 @@ TRAIN:
   resume:  # path to latest checkpoint (default: none)
   evaluate: True
   split: 3
-  shot: 2
+  shot: 1
   vgg: True  # whether to use vgg as the backbone
   ppm_scales: [1.0, 0.5, 0.25, 0.125]
   fix_random_seed_val: True

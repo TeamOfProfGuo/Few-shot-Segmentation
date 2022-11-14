@@ -1,3 +1,6 @@
+###  for testing IDA  ###
+###  For 1 shot setting, with the augmented supported set, we load the 2-shot model and make predication using 2-shot setting  ###
+
 import os
 import random
 import time
@@ -224,7 +227,7 @@ def validate(val_loader, model, criterion):
                     [(output_ori, intersection_meter, union_meter, target_meter, class_intersection_meter, class_union_meter),
                      (output_aug, intersection_meter1, union_meter1, target_meter1, class_intersection_meter1, class_union_meter1)]:
                 intersection, union, new_target = intersectionAndUnionGPU(pred_, target, args.classes, args.ignore_label)
-                intersection, union, new_target = intersection.cpu().numpy(), union.cpu().numpy(), new_target.cpu().numpy()
+                intersection, union, target, new_target = intersection.cpu().numpy(), union.cpu().numpy(), target.cpu().numpy(), new_target.cpu().numpy()
                 intersection_m.update(intersection), union_m.update(union), target_m.update(new_target)
 
                 class_intersection_m[(subcls-1)%split_gap] += intersection[1]
