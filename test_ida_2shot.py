@@ -1,5 +1,6 @@
 ###  for testing IDA  ###
 ###  For 1 shot setting, with the augmented supported set, we load the 2-shot model and make predication using 2-shot setting  ###
+###  need to set aug_type = 0 ###
 
 import os
 import random
@@ -99,7 +100,7 @@ def main_worker(gpu, ngpus_per_node, argss):
 
     model = PFENet(layers=args.layers, classes=2, zoom_factor=8, \
         criterion=nn.CrossEntropyLoss(ignore_index=255), BatchNorm=BatchNorm, \
-        pretrained=True, shot=args.shot, ppm_scales=args.ppm_scales, vgg=args.vgg)
+        pretrained=True, shot=args.shot * 2, ppm_scales=args.ppm_scales, vgg=args.vgg)
 
     global logger, writer
     logger = get_logger()
@@ -206,28 +207,25 @@ def validate(val_loader, model, criterion):
                 backmask[0, :ori_label.size(1), :ori_label.size(2)] = ori_label
                 target = backmask.clone().long()
 
-            out_all = []
-            for k in range(s_input.shape[1]):
-                curr_input = s_input[:, k:k + 1, :, :, :]  # [bs, shot, ch, h, w]
-                curr_mask = s_mask[:, k:k + 1, :, :]  # [bs, shot, h, w]
-                output = model(s_x=curr_input, s_y=curr_mask, x=input, y=target)  # [B(1), 2, 473, 473]  是logit
-                output = F.interpolate(output, size=target.size()[1:], mode='bilinear', align_corners=True)
-                out_prob = F.softmax(output, dim=1)  # [1, 2, 500, 500]
-                out_all.append(out_prob)
-                if k == 0:
-                    loss = criterion(output, target)
-            n = input.size(0)
+            s_input0 = torch.cat([s_input[:,0:1], s_input[:,0:1]], dim=1)  # [1, 2, 3, 473, 473]
+            s_mask0 = torch.cat([s_mask[:,0:1], s_mask[:,0:1]], dim=1)     # [1, 2, 473, 473]
+            output_ori = model(s_x=s_input0, s_y=s_mask0, x=input, y=target)  # [B(1), 2, 473, 473]  是logit
+            output_ori = F.interpolate(output_ori, size=target.size()[1:], mode='bilinear', align_corners=True)
+            loss = criterion(output_ori, target)
             loss = torch.mean(loss)
+            output_ori = output_ori.argmax(dim=1)  # [B(1), 2, 473, 473]
             model_time.update(time.time() - start_time)
 
-            output_ori = out_all[0].argmax(dim=1)  # [1, 500, 500]
-            output_aug = torch.cat(out_all, dim=0).mean(dim=0).unsqueeze(0).argmax(dim=1)  # [1, 500, 500]
+            output_aug = model(s_x=s_input, s_y=s_mask, x=input, y=target)  # [B(1), 2, 473, 473]  是logit
+            output_aug = F.interpolate(output_aug, size=target.size()[1:], mode='bilinear', align_corners=True)
+            output_aug = output_aug.argmax(dim=1)  # [B(1), 2, 473, 473]
+
             subcls = subcls[0].cpu().numpy()[0]
             for (pred_, intersection_m, union_m, target_m, class_intersection_m, class_union_m) in \
                     [(output_ori, intersection_meter, union_meter, target_meter, class_intersection_meter, class_union_meter),
                      (output_aug, intersection_meter1, union_meter1, target_meter1, class_intersection_meter1, class_union_meter1)]:
                 intersection, union, new_target = intersectionAndUnionGPU(pred_, target, args.classes, args.ignore_label)
-                intersection, union, target, new_target = intersection.cpu().numpy(), union.cpu().numpy(), target.cpu().numpy(), new_target.cpu().numpy()
+                intersection, union, new_target = intersection.cpu().numpy(), union.cpu().numpy(), new_target.cpu().numpy()
                 intersection_m.update(intersection), union_m.update(union), target_m.update(new_target)
 
                 class_intersection_m[(subcls-1)%split_gap] += intersection[1]
